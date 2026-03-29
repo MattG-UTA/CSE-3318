@@ -1,269 +1,135 @@
 // Matthew Gutierrez
 // 1002333697
 // Lab 3
-
+//Compilation command: gcc lab3.c -o lab3
+//Run command ./lab3
 #include <stdio.h>
 #include <stdlib.h>
-
-typedef struct {
-    int reachable;
-    int prevA;
-    int prevB;
-    char choice;
+//Struct for navigating the state of the subsequences.
+typedef struct 
+{
+    char r, c;
+    int a, b;
 } State;
 
-static int state_index(int step, int sumA, int sumB, int target) {
-    int width = target + 1;
-    return step * width * width + sumA * width + sumB;
+//Function for making the subsequences.
+static int idx(int i, int a, int b, int t) 
+{
+    return i * (t+1) * (t+1) + a * (t+1) + b;
 }
 
-static void print_sequence(const int *values, int count) {
-    int i;
+//Main
+int main(int argc, char* argv[]) {
+    
+//Initializes variables for intial size of array, number of elements, and total.
+int cap = 8, n = 0, i, total = 0;
+int *raw = malloc(cap * sizeof(int)), *v, *g;
+State *st;
 
-    printf("Sequence:");
-    for (i = 0; i < count; i++) {
-        printf(" %d", values[i]);
+if (!raw) return printf("Memory allocation failed.\n"), 1;
+    
+    //While loop to read in N number of elements into the array.
+while (scanf("%d", &i) == 1) 
+	{
+	        if (n == cap) 
+	        {
+	            cap *= 2;
+	            int *tmp = realloc(raw, cap * sizeof(int));
+	            if (!tmp) return printf("Memory allocation failed.\n"), free(raw), 1;
+	            raw = tmp;
+        }
+        raw[n++] = i;
+    	}
+if (!n) return printf("No input values.\n"), free(raw), 1;
+    
+//Makes arrays for holding subsequences 
+int m = (n == raw[0] + 1) ? raw[0] : n;
+v = malloc(m * sizeof(int));
+g = malloc(m * sizeof(int));
+if (!v || !g) return printf("Memory allocation failed.\n"), free(raw), free(v), free(g), 1;
+//Checks for positve
+for (i = 0; i < m; i++) 
+	{
+		v[i] = (n == raw[0] + 1) ? raw[i+1] : raw[i];
+        	if (v[i] <= 0) return printf("Error: values must be positive.\n"), free(raw), free(v), free(g), 1;
+        	total += v[i];
+    	}
+    	free(raw);
+
+if (total % 3) return printf("Error: total %d not divisible by 3.\n", total), free(v), free(g), 1;
+//Stores subsequence values.
+int t = total / 3, W = t + 1, S = (m+1) * W * W;
+st = calloc(S, sizeof(State));
+if (!st) return printf("Memory allocation failed.\n"), free(v), free(g), 1;
+
+st[idx(0,0,0,t)].r = 1;
+//For loop for computing the complete subequence answer.
+int pref = 0;
+for (i = 0; i < m; i++) 
+	{
+	        int x = v[i];
+	        pref += x;
+        for (int a = 0; a <= t; a++)
+        	for (int b = 0; b <= t; b++) 
+        	    {
+        	        int k = idx(i,a,b,t);
+        	        if (!st[k].r) continue;
+	
+        	        //group 2
+        	        if (pref - a - b <= t) 
+        	        {
+        	            int k2 = idx(i+1,a,b,t);
+        	            if (!st[k2].r) st[k2] = (State){1,2,a,b};
+        	        }
+        	        //group 0
+        	        if (a + x <= t) 
+        	        {
+        	            int k2 = idx(i+1,a+x,b,t);
+        	            if (!st[k2].r) st[k2] = (State){1,0,a,b};
+        	        }
+        	        //group 1
+        	        if (b + x <= t) 
+        	        {
+        	            int k2 = idx(i+1,a,b+x,t);
+        	            if (!st[k2].r) st[k2] = (State){1,1,a,b};
+        	        }
+        	    }
     }
-    printf("\n");
-}
-
-static void print_dp_table(const State *states, int count, int target) {
-    int step;
-    int sumA;
-    int sumB;
-
-    printf("Dynamic programming table:\n");
-    for (step = 0; step <= count; step++) {
-        printf("i = %d\n", step);
-        printf("    ");
-        for (sumB = 0; sumB <= target; sumB++) {
-            printf("%3d", sumB);
+//Error code for if the answer is not divisible by 3
+if (!st[idx(m,t,t,t)].r) 
+	{
+	        printf("Error: no equal-sum 3-way partition exists.\n");
+	        free(v); 
+	        free(g); 
+	        free(st);
+	        return 1;
+	    }
+//Constructs the completed subsequences.
+int a = t, b = t;
+for (i = m; i > 0; i--) 
+	{
+	        State s = st[idx(i,a,b,t)];
+	        g[i-1] = s.c;
+	        a = s.a;
+	        b = s.b;
+        }
+//For printing the three subsequences.
+printf("  i    0    1    2\n");
+for (i = 0; i < m; i++) 
+	{
+        	printf("%3d", i+1);
+        	for (int k = 0; k < 3; k++)
+        {
+        if(g[i] == k)
+        printf("%5d",v[i]);
+        else
+        printf("%5s", "");
         }
         printf("\n");
+    	}
 
-        for (sumA = 0; sumA <= target; sumA++) {
-            printf("%3d", sumA);
-            for (sumB = 0; sumB <= target; sumB++) {
-                int idx = state_index(step, sumA, sumB, target);
-                printf("%3c", states[idx].reachable ? '1' : '.');
-            }
-            printf("\n");
-        }
-    }
-}
-
-static void print_solution(const int *values, const int *groups, int count) {
-    int i;
-
-    printf("  i    0    1    2\n");
-    for (i = 0; i < count; i++) {
-        printf("%3d", i + 1);
-
-        if (groups[i] == 0) {
-            printf("%5d", values[i]);
-        } else {
-            printf("%5s", "");
-        }
-
-        if (groups[i] == 1) {
-            printf("%5d", values[i]);
-        } else {
-            printf("%5s", "");
-        }
-
-        if (groups[i] == 2) {
-            printf("%5d", values[i]);
-        } else {
-            printf("%5s", "");
-        }
-
-        printf("\n");
-    }
-}
-
-int main(void) {
-    int capacity = 16;
-    int count = 0;
-    int *raw = (int *)malloc(capacity * sizeof(int));
-    int *values = NULL;
-    int *groups = NULL;
-    State *states = NULL;
-    int i;
-    int total = 0;
-    int target;
-    int effectiveCount;
-
-    if (raw == NULL) {
-        printf("Memory allocation failed.\n");
-        return 1;
-    }
-
-    while (1) {
-        int nextValue;
-
-        if (scanf("%d", &nextValue) != 1) {
-            break;
-        }
-
-        if (count == capacity) {
-            int *grown;
-            capacity *= 2;
-            grown = (int *)realloc(raw, capacity * sizeof(int));
-            if (grown == NULL) {
-                printf("Memory allocation failed.\n");
-                free(raw);
-                return 1;
-            }
-            raw = grown;
-        }
-
-        raw[count++] = nextValue;
-    }
-
-    if (count == 0) {
-        printf("No input values were provided.\n");
-        free(raw);
-        return 1;
-    }
-
-    if (count == raw[0] + 1) {
-        effectiveCount = raw[0];
-        values = (int *)malloc(effectiveCount * sizeof(int));
-        if (values == NULL) {
-            printf("Memory allocation failed.\n");
-            free(raw);
-            return 1;
-        }
-        for (i = 0; i < effectiveCount; i++) {
-            values[i] = raw[i + 1];
-        }
-    } else {
-        effectiveCount = count;
-        values = (int *)malloc(effectiveCount * sizeof(int));
-        if (values == NULL) {
-            printf("Memory allocation failed.\n");
-            free(raw);
-            return 1;
-        }
-        for (i = 0; i < effectiveCount; i++) {
-            values[i] = raw[i];
-        }
-    }
-
-    free(raw);
-
-    for (i = 0; i < effectiveCount; i++) {
-        if (values[i] <= 0) {
-            print_sequence(values, effectiveCount);
-            printf("Error: all sequence values must be positive integers.\n");
-            free(values);
-            return 1;
-        }
-        total += values[i];
-    }
-
-    print_sequence(values, effectiveCount);
-
-    if (total % 3 != 0) {
-        printf("Error: total sum %d is not divisible by 3.\n", total);
-        free(values);
-        return 1;
-    }
-
-    target = total / 3;
-    groups = (int *)malloc(effectiveCount * sizeof(int));
-    if (groups == NULL) {
-        printf("Memory allocation failed.\n");
-        free(values);
-        return 1;
-    }
-
-    {
-        int width = target + 1;
-        int tableSize = (effectiveCount + 1) * width * width;
-        int prefix = 0;
-        states = (State *)calloc((size_t)tableSize, sizeof(State));
-        if (states == NULL) {
-            printf("Memory allocation failed.\n");
-            free(values);
-            free(groups);
-            return 1;
-        }
-
-        states[state_index(0, 0, 0, target)].reachable = 1;
-
-        for (i = 0; i < effectiveCount; i++) {
-            int sumA;
-            int sumB;
-            prefix += values[i];
-
-            for (sumA = 0; sumA <= target; sumA++) {
-                for (sumB = 0; sumB <= target; sumB++) {
-                    int currentIdx = state_index(i, sumA, sumB, target);
-
-                    if (!states[currentIdx].reachable) {
-                        continue;
-                    }
-
-                    if (!states[state_index(i + 1, sumA, sumB, target)].reachable &&
-                        prefix - sumA - sumB <= target) {
-                        State *next = &states[state_index(i + 1, sumA, sumB, target)];
-                        next->reachable = 1;
-                        next->prevA = sumA;
-                        next->prevB = sumB;
-                        next->choice = 2;
-                    }
-
-                    if (sumA + values[i] <= target &&
-                        !states[state_index(i + 1, sumA + values[i], sumB, target)].reachable) {
-                        State *next = &states[state_index(i + 1, sumA + values[i], sumB, target)];
-                        next->reachable = 1;
-                        next->prevA = sumA;
-                        next->prevB = sumB;
-                        next->choice = 0;
-                    }
-
-                    if (sumB + values[i] <= target &&
-                        !states[state_index(i + 1, sumA, sumB + values[i], target)].reachable) {
-                        State *next = &states[state_index(i + 1, sumA, sumB + values[i], target)];
-                        next->reachable = 1;
-                        next->prevA = sumA;
-                        next->prevB = sumB;
-                        next->choice = 1;
-                    }
-                }
-            }
-        }
-    }
-
-    if (target < 10) {
-        print_dp_table(states, effectiveCount, target);
-    }
-
-    if (!states[state_index(effectiveCount, target, target, target)].reachable) {
-        printf("Error: no equal-sum 3-way partition exists.\n");
-        free(values);
-        free(groups);
-        free(states);
-        return 1;
-    }
-
-    {
-        int sumA = target;
-        int sumB = target;
-
-        for (i = effectiveCount; i > 0; i--) {
-            State current = states[state_index(i, sumA, sumB, target)];
-            groups[i - 1] = current.choice;
-            sumA = current.prevA;
-            sumB = current.prevB;
-        }
-    }
-
-    print_solution(values, groups, effectiveCount);
-
-    free(values);
-    free(groups);
-    free(states);
+    free(v); 
+    free(g); 
+    free(st);
     return 0;
 }
